@@ -2,7 +2,16 @@ import gym
 import numpy as np
 import torch
 from tqdm import tqdm
+from torch import nn
+device = torch.device("cuda:0")
+
+
+from mpl_toolkits.mplot3d import Axes3D
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+
 class NormalizedEnv(gym.ActionWrapper):
+    
     """ Wrap action """
 
     def action(self, action):
@@ -24,6 +33,25 @@ class RandomAgent:
     def compute_action(self, state):
         return np.random.uniform(-1, 1, size=(self.action_size, ))
     
+
+class HeuristicPendulumAgent:
+    def __init__(self, env,torque=0.5):
+        self.state_size = env.observation_space.shape[0]
+        self.action_size = env.action_space.shape[0]
+        self.torque=torque
+    def compute_action(self, state):
+        
+       
+        if state[1]<0:
+            if state[2]>0:
+                return self.torque
+            else: 
+                return -self.torque
+        else:
+            if state[2]>0:
+                return -self.torque
+            else:
+                return self.torque
     
     
 class Buffer:    
@@ -141,7 +169,7 @@ class DDPGAgent():
         self.model=model
         self.vanilla_noise=vanilla_noise
         
-        self.noise=OUActionNoise(sigma)
+        self.noise=OUActionNoise(sigma,theta)
     def compute_action(self,state, deterministic=True):
         action = self.model(state)
         if deterministic:
@@ -151,5 +179,40 @@ class DDPGAgent():
                 return self.noise.get_noisy_action(action)
             else:
                 return self.noise.evolve_state(action)
+            
+            
+            
+
+def polar_plot(speed,action,model,model_name=''):
+    pi=torch.acos(torch.zeros(1)).item() * 2
+    radius = torch.linspace(0, 1, 100)
+    angle = torch.linspace(0, 2 * pi, 100)
+    x=torch.cos(angle)
+    y=torch.sin(angle)
+    z=torch.zeros(angle.shape[0],radius.shape[0])
+    
+    
+    for i in range(x.shape[0]):
+        inp = torch.tensor([x[i],y[i],speed,action]).to(device)
+        # z is constant with respect to the radius
+        z[i,:] = model(inp)
+    angle = angle.detach().numpy()
+    z = z.detach().numpy()
+    radius = radius.detach().numpy()
+
+    fig = plt.figure()
+    ax = Axes3D(fig)
+    r, th = np.meshgrid(radius, angle)
+    plt.subplot(projection="polar")
+
+    plt.pcolormesh(th, r, z)
+    #plt.pcolormesh(th, z, r)
+
+    plt.plot(angle, r, color='k', ls='none') 
+    plt.grid()
+    plt.savefig('figures/'+model_name+'_polar_map_speed_'+str(speed)+'_action_'+str(action)+'_part4.png')
+    plt.show()
+    
+    
             
             
